@@ -1,0 +1,17 @@
+{
+  "dataset": "stock",
+  "target_class": 0,
+  "n_real": 100,
+  "n_ebms": 4,
+  "method": "distance",
+  "neg_distances": [
+    2.0,
+    5.0,
+    10.0,
+    15.0
+  ],
+  "subsample_ratio": null,
+  "seed": 42,
+  "n_class_samples": 53,
+  "n_features": 9
+}

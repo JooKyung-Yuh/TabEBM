@@ -1,0 +1,3 @@
+group,n_points,variance_mean,variance_median,variance_max,variance_min
+real_data,53,0.020462,0.009186,0.123324,0.000476
+random_points,100,0.018493,0.016019,0.060809,0.002249
