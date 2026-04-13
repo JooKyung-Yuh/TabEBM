@@ -75,6 +75,7 @@ class TabEBM:
     def __init__(
         self,
         max_data_size: int = 10000,
+        device: Optional[str] = None,
     ):
         """
         Initialize TabEBM with optimized configuration.
@@ -82,6 +83,8 @@ class TabEBM:
         Args:
             max_data_size: Maximum number of data points to use for training.
                           Larger datasets will be subsampled to this size.
+            device: Device to use for computation (e.g. "cuda:0", "cuda:1", "cpu").
+                    If None, automatically selects "cuda" if available, else "cpu".
         """
         # Configure TabPFN to disable preprocessing for gradient computation
         # This is crucial for SGLD sampling as we need gradients w.r.t. input features
@@ -92,7 +95,10 @@ class TabEBM:
             PREPROCESS_TRANSFORMS=[PreprocessorConfig(name="none")],
         )
 
-        self.device = "cuda" if torch.cuda.is_available() else "cpu"
+        if device is not None:
+            self.device = device
+        else:
+            self.device = "cuda" if torch.cuda.is_available() else "cpu"
 
         # Initialize TabPFN with single estimator for gradient computation
         # Note: Multiple estimators are disabled because preprocessing coupling
@@ -169,10 +175,17 @@ class TabEBM:
             debug=debug,
         )
 
-        # Extract sampling results and format output
+        # Extract sampling results and format output.
+        # Use actual unique class values (handles non-contiguous labels like [0,2,5]).
         augmented_data = {}
-        for target_class in range(len(np.unique(to_numpy(y)))):
+        unique_classes = np.unique(to_numpy(y))
+        for target_class in unique_classes:
             class_key = f"class_{int(target_class)}"
+            if class_key not in res:
+                raise KeyError(
+                    f"TabEBM.generate(): class '{class_key}' missing from sampling results. "
+                    f"Expected keys for classes {list(unique_classes)}, got {list(res.keys())}."
+                )
             augmented_data[class_key] = res[class_key]["sampling_paths"]
 
         return augmented_data
