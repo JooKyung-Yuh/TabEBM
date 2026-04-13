@@ -1,0 +1,98 @@
+{
+  "args": {
+    "dataset": "energy",
+    "n_real": 50,
+    "n_syn": 500,
+    "n_splits": 10,
+    "single_split": null,
+    "methods": [
+      "baseline",
+      "smote",
+      "tabebm",
+      "tvae",
+      "ctgan"
+    ],
+    "classifiers": [
+      "lr",
+      "knn",
+      "mlp",
+      "rf",
+      "xgboost",
+      "tabpfn"
+    ],
+    "sgld_steps": 200,
+    "sgld_step_size": 0.1,
+    "sgld_noise_std": 0.01,
+    "distance_negative_class": 5.0,
+    "gpus": [
+      0,
+      1,
+      2,
+      3
+    ],
+    "gpu": null,
+    "cpu_jobs": 16,
+    "output_dir": "experiments/results/full_v3",
+    "cache_dir": null,
+    "seed": 42
+  },
+  "dataset_meta": {
+    "openml_id": 1472,
+    "openml_version": 1,
+    "target_attribute": "y1",
+    "original_n_samples": 768,
+    "n_features": 9,
+    "n_categorical_features": 1,
+    "original_n_classes": 37,
+    "classes_removed": 14,
+    "n_imputed": 0,
+    "final_n_samples": 698,
+    "final_n_classes": 23
+  },
+  "split_protocol": {
+    "n_test": 349,
+    "base_seed": 42,
+    "normalization": "z-score"
+  },
+  "parallelism": {
+    "tabebm_class_parallel": true,
+    "n_gpus": 4,
+    "gpus": [
+      0,
+      1,
+      2,
+      3
+    ],
+    "cpu_jobs": 16,
+    "mode": "class_parallel",
+    "single_split": null
+  },
+  "environment": {
+    "python": "3.10.20",
+    "numpy": "1.26.4",
+    "pandas": "2.3.3",
+    "sklearn": "1.6.1",
+    "platform": "Linux-6.14.0-37-generic-x86_64-with-glibc2.35",
+    "torch": "2.11.0+cu130",
+    "cuda_available": true,
+    "gpu_count": 4,
+    "gpus_used": [
+      0,
+      1,
+      2,
+      3
+    ],
+    "gpu0_name": "NVIDIA RTX 6000 Ada Generation",
+    "gpu1_name": "NVIDIA RTX 6000 Ada Generation",
+    "gpu2_name": "NVIDIA RTX 6000 Ada Generation",
+    "gpu3_name": "NVIDIA RTX 6000 Ada Generation",
+    "tabpfn": "2.1.2",
+    "xgboost": "2.1.4",
+    "imbalanced_learn": "0.14.1"
+  },
+  "timing": {
+    "start_time": "2026-04-13 08:54:34",
+    "end_time": "2026-04-13 09:29:38",
+    "total_time_sec": 2103.2
+  }
+}

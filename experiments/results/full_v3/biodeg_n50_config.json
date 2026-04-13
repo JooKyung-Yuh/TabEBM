@@ -1,0 +1,86 @@
+{
+  "args": {
+    "dataset": "biodeg",
+    "n_real": 50,
+    "n_syn": 500,
+    "n_splits": 10,
+    "single_split": null,
+    "methods": [
+      "baseline",
+      "smote",
+      "tabebm",
+      "tvae",
+      "ctgan"
+    ],
+    "classifiers": [
+      "lr",
+      "knn",
+      "mlp",
+      "rf",
+      "xgboost",
+      "tabpfn"
+    ],
+    "sgld_steps": 200,
+    "sgld_step_size": 0.1,
+    "sgld_noise_std": 0.01,
+    "distance_negative_class": 5.0,
+    "gpus": [
+      0
+    ],
+    "gpu": null,
+    "cpu_jobs": 6,
+    "output_dir": "experiments/results/full_v3",
+    "cache_dir": null,
+    "seed": 42
+  },
+  "dataset_meta": {
+    "openml_id": 1494,
+    "openml_version": 1,
+    "target_attribute": "Class",
+    "original_n_samples": 1055,
+    "n_features": 41,
+    "n_categorical_features": 0,
+    "original_n_classes": 2,
+    "classes_removed": 0,
+    "n_imputed": 0,
+    "final_n_samples": 1055,
+    "final_n_classes": 2
+  },
+  "split_protocol": {
+    "n_test": 500,
+    "base_seed": 42,
+    "normalization": "z-score"
+  },
+  "parallelism": {
+    "tabebm_class_parallel": false,
+    "n_gpus": 1,
+    "gpus": [
+      0
+    ],
+    "cpu_jobs": 6,
+    "mode": "single_gpu",
+    "single_split": null
+  },
+  "environment": {
+    "python": "3.10.20",
+    "numpy": "1.26.4",
+    "pandas": "2.3.3",
+    "sklearn": "1.6.1",
+    "platform": "Linux-6.14.0-37-generic-x86_64-with-glibc2.35",
+    "torch": "2.11.0+cu130",
+    "cuda_available": true,
+    "gpu_count": 4,
+    "gpus_used": [
+      0
+    ],
+    "gpu0_name": "NVIDIA RTX 6000 Ada Generation",
+    "tabpfn": "2.1.2",
+    "xgboost": "2.1.4",
+    "imbalanced_learn": "0.14.1"
+  },
+  "timing": {
+    "start_time": "2026-04-12 12:18:47",
+    "end_time": "2026-04-12 12:30:41",
+    "total_time_sec": 714.2
+  }
+}
