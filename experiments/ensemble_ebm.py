@@ -39,12 +39,24 @@ from sklearn.preprocessing import LabelEncoder, StandardScaler
 warnings.filterwarnings("ignore")
 
 DATASET_IDS = {
-    # Paper primary 8 (OpenML)
-    "protein": 40966, "fourier": 14, "biodeg": 1494, "steel": 1504,
-    "stock": 841, "energy": 1472, "collins": 40971, "texture": 40499,
-    # Paper extra (run_experiment.py DATASET_REGISTRY)
-    "clinical": 43898, "support2": 43897, "mushroom": 24,
-    "auction": 43896, "abalone": 183, "statlog": 31,
+    # Paper 14개 전체 — 공식 run_experiment.py DATASET_REGISTRY 와 동일.
+    # 전부 OpenML 접근 (paper 의 "UCI" 라벨 dataset 도 OpenML 에 mirror 됨).
+    # ────────────── 논문 primary 8 ──────────────
+    "protein":  40966,   # 77d, 8 classes
+    "fourier":  14,      # 76d, 10 classes
+    "biodeg":   1494,    # 41d, 2 classes     (QSAR biodegradation)
+    "steel":    1504,    # 33d, 2 classes
+    "stock":    841,     # 9d,  2 classes
+    "energy":   1472,    # 9d,  32 classes
+    "collins":  40971,   # 19d, 29 classes
+    "texture":  40499,   # 40d, 11 classes
+    # ────────────── 논문 extra 6 (leakage-free UCI → OpenML mirror) ──────────────
+    "clinical": 43898,   # clinical records, binary (mortality)
+    "support2": 43897,   # ICU mortality, binary
+    "mushroom": 24,      # edible/poisonous, binary (UCI 원본 → OpenML id=24)
+    "auction":  43896,   # shill bidding detection, binary
+    "abalone":  183,     # age regression → classification, 28 classes (UCI 원본)
+    "statlog":  31,      # credit risk, binary (Statlog German Credit, UCI 원본)
 }
 
 
@@ -52,8 +64,14 @@ DATASET_IDS = {
 # Shared helpers
 # ===========================================================================
 def load_and_preprocess(dataset_name, n_real, seed=42, standardize=True, impute=True,
-                         encode_categorical=True, return_cat_idx=False):
+                         encode_categorical=True, return_cat_idx=False,
+                         drop_small_classes=True, min_class_count=10):
     """Load dataset, ordinal-encode categoricals, subsample, optionally impute + z-score.
+
+    drop_small_classes:
+        True (default, paper B.1 + run_experiment.py) → remove classes with fewer than
+        `min_class_count` samples before splitting. 10 stratified splits × 80/20 val 이
+        불가능한 rare class 제거.
 
     .. deprecated::
         standardize=True / impute=True (full-data stats, split 전) 는 test leakage 위험.
@@ -69,11 +87,13 @@ def load_and_preprocess(dataset_name, n_real, seed=42, standardize=True, impute=
             DeprecationWarning, stacklevel=2,
         )
     return _load_and_preprocess_impl(dataset_name, n_real, seed, standardize, impute,
-                                       encode_categorical, return_cat_idx)
+                                       encode_categorical, return_cat_idx,
+                                       drop_small_classes, min_class_count)
 
 
 def _load_and_preprocess_impl(dataset_name, n_real, seed, standardize, impute,
-                                encode_categorical, return_cat_idx):
+                                encode_categorical, return_cat_idx,
+                                drop_small_classes=True, min_class_count=10):
     """Original loading logic (called by load_and_preprocess).
 
     standardize:
@@ -111,6 +131,17 @@ def _load_and_preprocess_impl(dataset_name, n_real, seed, standardize, impute,
 
     X = X_df.to_numpy().astype(np.float64) if hasattr(X_df, "to_numpy") else np.array(X_df, dtype=np.float64)
     y = LabelEncoder().fit_transform(y_raw)
+
+    # Paper B.1 + run_experiment.py:154-161 — drop classes with < min_class_count samples.
+    # 이유: 10 splits × stratified × 80/20 val 에서 class 가 너무 적으면 split 불가.
+    if drop_small_classes:
+        class_counts = np.bincount(y)
+        valid_classes = np.where(class_counts >= min_class_count)[0]
+        n_removed = int(len(class_counts) - len(valid_classes))
+        if n_removed > 0:
+            mask = np.isin(y, valid_classes)
+            X, y = X[mask], y[mask]
+            y = LabelEncoder().fit_transform(y)  # relabel 0..K-1 contiguous
 
     if impute:
         nan_mask = np.isnan(X)
