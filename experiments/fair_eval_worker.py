@@ -42,13 +42,31 @@ def fit_one_split_ensemble(args_tuple):
 
     (split_i, tr_idx, X_all, y_all, classes,
      ensemble_methods, ensemble_method_params, shared_corners, K,
-     seed, split_ens_dir) = args_tuple
+     seed, split_ens_dir, dataset, n_real) = args_tuple
 
     X_tr, y_tr = X_all[tr_idx], y_all[tr_idx]
     split_seed = seed + split_i * 100
     ens_dir = Path(split_ens_dir) / f'split_{split_i}'
 
-    if (ens_dir / 'c0' / 'meta.json').exists():
+    # Strong cache check: all classes × all K members present
+    def _fully_cached():
+        for c in classes:
+            cdir = ens_dir / f'c{c}'
+            if not (cdir / 'meta.json').exists():
+                return False
+            try:
+                meta = json.loads((cdir / 'meta.json').read_text())
+                n_expected = meta.get('n_ebms', K)
+            except Exception:
+                return False
+            for k in range(n_expected):
+                if not (cdir / f'ebm_{k}' / 'config.json').exists():
+                    return False
+                if not (cdir / f'ebm_{k}' / 'surrogate_data.npz').exists():
+                    return False
+        return True
+
+    if _fully_cached():
         return dict(split_i=split_i, dt=0, cached=True)
 
     t0 = time.time()
@@ -59,7 +77,7 @@ def fit_one_split_ensemble(args_tuple):
             X_class=X_class, X_all=X_tr, y_all=y_tr,
             methods=ensemble_methods, K=K, seed=split_seed,
             method_params=ensemble_method_params,
-            dataset='stock', target_class=int(c), n_real=len(X_tr),
+            dataset=dataset, target_class=int(c), n_real=n_real,
             shared_corners=shared_corners,
         )
     return dict(split_i=split_i, dt=time.time()-t0, cached=False)
@@ -113,19 +131,25 @@ def run_one_sgld_task(args_tuple):
                      dt=time.time()-t0, gpu=gpu, pid=os.getpid())
 
     elif task_type == 'single':
+        if not isinstance(cfg_or_seed, dict):
+            raise ValueError(
+                "single task_type requires cfg dict with explicit SGLD + "
+                "distance_negative_class fields. Legacy non-dict fallback removed "
+                "(unseen defaults caused unfair baseline comparisons)."
+            )
         te = TabEBM(device=f'cuda:{gpu}')
-        seed_offset = 0
-        if isinstance(cfg_or_seed, dict):
-            cfg = cfg_or_seed
-            cfg_name = cfg.get('name', 'tabebm_single')
-            seed_offset = int(cfg.get('seed_offset', 0))
-            gen_kw = {k: cfg[k] for k in
-                      ('sgld_steps', 'sgld_step_size', 'sgld_noise_std',
-                       'starting_point_noise_std', 'distance_negative_class')
-                      if k in cfg}
-        else:
-            cfg_name = 'tabebm_single'
-            gen_kw = {}
+        cfg = cfg_or_seed
+        cfg_name = cfg.get('name', 'tabebm_single')
+        seed_offset = int(cfg.get('seed_offset', 0))
+        gen_kw = {k: cfg[k] for k in
+                  ('sgld_steps', 'sgld_step_size', 'sgld_noise_std',
+                   'starting_point_noise_std', 'distance_negative_class')
+                  if k in cfg}
+        if 'distance_negative_class' not in gen_kw:
+            raise ValueError(
+                f"cfg {cfg_name!r} missing 'distance_negative_class'. "
+                f"Explicit value required for reproducible corner geometry."
+            )
         gen_seed = split_seed + seed_offset
 
         BATCH = 1000
