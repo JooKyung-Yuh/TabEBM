@@ -41,22 +41,24 @@ warnings.filterwarnings("ignore")
 DATASET_IDS = {
     # Paper 14개 전체 — 공식 run_experiment.py DATASET_REGISTRY 와 동일.
     # 전부 OpenML 접근 (paper 의 "UCI" 라벨 dataset 도 OpenML 에 mirror 됨).
+    # 형식: name: openml_id,   # N samples, D features, C classes (filter 전 → filter 후), cat_cols
     # ────────────── 논문 primary 8 ──────────────
-    "protein":  40966,   # 77d, 8 classes
-    "fourier":  14,      # 76d, 10 classes
-    "biodeg":   1494,    # 41d, 2 classes     (QSAR biodegradation)
-    "steel":    1504,    # 33d, 2 classes
-    "stock":    841,     # 9d,  2 classes
-    "energy":   1472,    # 9d,  32 classes
-    "collins":  40971,   # 19d, 29 classes
-    "texture":  40499,   # 40d, 11 classes
+    "protein":  40966,   # N=1080,  D=77, C=8             (cat=0)   multi-class protein loc
+    "fourier":  14,      # N=2000,  D=76, C=10            (cat=0)   digit Fourier descriptors
+    "biodeg":   1494,    # N=1055,  D=41, C=2             (cat=0)   QSAR biodegradation
+    "steel":    1504,    # N=1941,  D=33, C=2             (cat=0)   steel-plates faults
+    "stock":    841,     # N=950,   D=9,  C=2             (cat=0)   stock direction
+    "energy":   1472,    # N=768,   D=9,  C=37 → 23       (cat=1)   energy-efficiency classes
+    "collins":  40971,   # N=1000,  D=19, C=30 → 26       (cat=0)   collins text classes
+    "texture":  40499,   # N=5500,  D=40, C=11            (cat=0)   image texture
     # ────────────── 논문 extra 6 (leakage-free UCI → OpenML mirror) ──────────────
-    "clinical": 43898,   # clinical records, binary (mortality)
-    "support2": 43897,   # ICU mortality, binary
-    "mushroom": 24,      # edible/poisonous, binary (UCI 원본 → OpenML id=24)
-    "auction":  43896,   # shill bidding detection, binary
-    "abalone":  183,     # age regression → classification, 28 classes (UCI 원본)
-    "statlog":  31,      # credit risk, binary (Statlog German Credit, UCI 원본)
+    "clinical": 43898,   # N=48790, D=14, C=2             (cat=8)   clinical records / mortality
+    "support2": 43897,   # N=1470,  D=33, C=2             (cat=8)   ICU mortality
+    "mushroom": 24,      # N=8124,  D=22, C=2             (cat=22)  edible vs poisonous (all cat)
+    "auction":  43896,   # N=1470,  D=34, C=2             (cat=8)   shill-bidding detection
+    "abalone":  183,     # N=4177,  D=8,  C=28 → 19       (cat=1)   age (rings) → class
+    "statlog":  31,      # N=1000,  D=20, C=2             (cat=13)  German credit risk
+    # 'C=X → Y' = paper B.1 class<10 filter 적용 후 Y 개 class 남음.
 }
 
 
