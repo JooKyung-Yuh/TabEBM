@@ -39,38 +39,132 @@ from sklearn.preprocessing import LabelEncoder, StandardScaler
 warnings.filterwarnings("ignore")
 
 DATASET_IDS = {
+    # Paper primary 8 (OpenML)
     "protein": 40966, "fourier": 14, "biodeg": 1494, "steel": 1504,
     "stock": 841, "energy": 1472, "collins": 40971, "texture": 40499,
+    # Paper extra (run_experiment.py DATASET_REGISTRY)
+    "clinical": 43898, "support2": 43897, "mushroom": 24,
+    "auction": 43896, "abalone": 183, "statlog": 31,
 }
 
 
 # ===========================================================================
 # Shared helpers
 # ===========================================================================
-def load_and_preprocess(dataset_name, n_real, seed=42):
-    """Load dataset, subsample, z-score normalize. Returns X, y (0-indexed labels)."""
+def load_and_preprocess(dataset_name, n_real, seed=42, standardize=True, impute=True,
+                         encode_categorical=True, return_cat_idx=False):
+    """Load dataset, ordinal-encode categoricals, subsample, optionally impute + z-score.
+
+    .. deprecated::
+        standardize=True / impute=True (full-data stats, split 전) 는 test leakage 위험.
+        Canonical path: standardize=False, impute=False + fit_preprocessor/apply_preprocessor.
+    """
+    import warnings
+    if standardize or impute:
+        warnings.warn(
+            "load_and_preprocess(standardize=True, impute=True) uses full-data statistics "
+            "before splitting → potential test leakage. For paper B.3 protocol, "
+            "pass standardize=False, impute=False and use fit_preprocessor + apply_preprocessor "
+            "on the per-split training set only.",
+            DeprecationWarning, stacklevel=2,
+        )
+    return _load_and_preprocess_impl(dataset_name, n_real, seed, standardize, impute,
+                                       encode_categorical, return_cat_idx)
+
+
+def _load_and_preprocess_impl(dataset_name, n_real, seed, standardize, impute,
+                                encode_categorical, return_cat_idx):
+    """Original loading logic (called by load_and_preprocess).
+
+    standardize:
+        True  → fit StandardScaler on full (subsampled) X — legacy (test leakage 가능).
+        False → raw X. 호출자가 split 후 train-only StandardScaler fit.
+    impute:
+        True  → mean imputation on full (subsampled) X — legacy.
+        False → NaN intact. 호출자가 split 후 train-only imputer fit.
+    encode_categorical:
+        True  → paper run_experiment.py 처럼 OrdinalEncoder(handle_unknown='use_encoded_value',
+                unknown_value=-1) 로 categorical column 을 global 하게 변환.
+        False → 모든 column 을 float 으로 강제 cast (구 동작).
+
+    paper B.3 protocol (paper 재현): standardize=False, impute=False, encode_categorical=True.
+    호출자는 split 후 fit_preprocessor/apply_preprocessor 로 numeric 만 별도 처리.
+
+    Returns:
+        X, y                 if return_cat_idx=False (default)
+        X, y, cat_idx        if return_cat_idx=True  (cat_idx: ordinal-encoded 된 column idx 리스트)
+    """
     import openml
     ds = openml.datasets.get_dataset(DATASET_IDS[dataset_name])
-    X, y_raw, _, _ = ds.get_data(target=ds.default_target_attribute)
-    X = X.to_numpy().astype(np.float64) if hasattr(X, "to_numpy") else np.array(X, dtype=np.float64)
+    X_df, y_raw, cat_indicator, _ = ds.get_data(target=ds.default_target_attribute)
+
+    # cat_indicator: list[bool], length = n_features
+    cat_idx = [i for i, is_cat in enumerate(cat_indicator or [])
+               if is_cat]
+
+    if encode_categorical and cat_idx:
+        from sklearn.preprocessing import OrdinalEncoder
+        enc = OrdinalEncoder(handle_unknown='use_encoded_value', unknown_value=-1)
+        cat_cols = [X_df.columns[i] for i in cat_idx]
+        # object astype keeps NaN behavior for OrdinalEncoder
+        X_df[cat_cols] = enc.fit_transform(X_df[cat_cols].astype('object'))
+
+    X = X_df.to_numpy().astype(np.float64) if hasattr(X_df, "to_numpy") else np.array(X_df, dtype=np.float64)
     y = LabelEncoder().fit_transform(y_raw)
 
-    # Missing values
-    nan_mask = np.isnan(X)
-    if nan_mask.any():
-        for col in range(X.shape[1]):
-            X[nan_mask[:, col], col] = np.nanmean(X[:, col])
+    if impute:
+        nan_mask = np.isnan(X)
+        if nan_mask.any():
+            for col in range(X.shape[1]):
+                X[nan_mask[:, col], col] = np.nanmean(X[:, col])
 
-    # Subsample
     rng = np.random.RandomState(seed)
     if n_real < len(X):
         idx = rng.choice(len(X), n_real, replace=False)
         X, y = X[idx], y[idx]
 
     y = LabelEncoder().fit_transform(y)
-    scaler = StandardScaler()
-    X = scaler.fit_transform(X)
+    if standardize:
+        scaler = StandardScaler()
+        X = scaler.fit_transform(X)
+
+    if return_cat_idx:
+        return X, y, cat_idx
     return X, y
+
+
+def fit_preprocessor(X_train):
+    """Fit train-only imputer (column nan-mean) + scaler (column mean/std).
+
+    Paper B.3: preprocessing statistics must come from the training set only.
+    Returns dict with imp_mean / scl_mean / scl_std (1-D arrays, length D).
+    """
+    imp_mean = np.nanmean(X_train, axis=0)
+    imp_mean = np.where(np.isnan(imp_mean), 0.0, imp_mean)
+    X_imp = np.where(np.isnan(X_train), imp_mean, X_train)
+    scl_mean = X_imp.mean(axis=0)
+    scl_std = X_imp.std(axis=0)
+    scl_std = np.where(scl_std == 0, 1.0, scl_std)
+    return dict(
+        imp_mean=imp_mean.astype(np.float64),
+        scl_mean=scl_mean.astype(np.float64),
+        scl_std=scl_std.astype(np.float64),
+    )
+
+
+def apply_preprocessor(X, params):
+    """Apply a train-fit preprocessor (from fit_preprocessor) to X."""
+    X_imp = np.where(np.isnan(X), params['imp_mean'], X)
+    return ((X_imp - params['scl_mean']) / params['scl_std']).astype(np.float64)
+
+
+def split_preprocessor_from_npz(sp, split_i):
+    """Pull per-split preprocessor params out of a splits.npz mapping."""
+    return {
+        'imp_mean': sp[f'imp_mean_{split_i}'],
+        'scl_mean': sp[f'scl_mean_{split_i}'],
+        'scl_std':  sp[f'scl_std_{split_i}'],
+    }
 
 
 def rebuild_ebm(ebm_path, gpu=0):
