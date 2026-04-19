@@ -1,3 +1,8 @@
+# Secrets — NEVER commit
+.env
+.env.*
+!.env.example
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
@@ -130,3 +135,68 @@ dmypy.json
 
 # PyPI
 .pypirc
+
+# =============================================================
+# 실험 산출물 (로컬/서버 별 대용량, git 트래킹 안 함)
+# =============================================================
+experiments/ebms/
+experiments/archive/
+experiments/fair_eval/
+experiments/results/
+experiments/wandb/
+experiments/lightning_logs/
+experiments/mlruns/
+
+# Tutorial rendered HTML / 구버전 archive (src 는 tutorials/ 에 남겨둠)
+tutorials/archive/*.html
+
+# 연구 메모 / 계획 / 추출 아티팩트 (로컬 전용)
+experiment_plan.md
+integrated_critical_experiment_plan.md
+ensemble_experiment_protocol.md
+paper_sentences2.json
+
+# Heavy artifacts anywhere (대용량/재생성 가능)
+*.ckpt
+*.pt
+*.pth
+*.pkl
+*.h5
+*.hdf5
+*.safetensors
+*.bin
+
+# W&B / MLflow / Lightning / TensorBoard
+wandb/
+mlruns/
+lightning_logs/
+runs/
+tb_logs/
+.neptune/
+outputs/
+lightning_checkpoints/
+
+# =============================================================
+# OS / Editor / Tools
+# =============================================================
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.#*
+\#*#
+
+# Jupyter 추가
+*.nbconvert.ipynb
+
+# Claude Code 로컬 설정 (memory/세션)
+.claude/
+
+# 로컬 .envrc (direnv)
+.envrc
