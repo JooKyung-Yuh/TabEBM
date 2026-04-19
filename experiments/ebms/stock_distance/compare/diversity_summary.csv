@@ -1,4 +1,0 @@
-region,energy_std_mean,energy_std_median,energy_std_count,energy_range_mean,energy_range_median,energy_range_count,gar_mean,gar_median,gar_count,grad_var_mean,grad_var_median,grad_var_count
-far,0.1519,0.1333,200,0.3612,0.3086,200,0.5998,0.6119,200,0.0,0.0,200
-near,0.2794,0.2724,200,0.6979,0.6729,200,0.726,0.7366,200,0.0002,0.0002,200
-real,0.1098,0.1099,53,0.3003,0.3086,53,0.6387,0.6527,53,1e-04,0.0,53
