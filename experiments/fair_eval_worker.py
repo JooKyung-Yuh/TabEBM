@@ -173,3 +173,92 @@ def run_one_sgld_task(args_tuple):
         return dict(task_type='single', split_i=split_i, class_c=class_c,
                      cfg_name=cfg_name, samples=samples,
                      dt=time.time()-t0, gpu=gpu, pid=os.getpid())
+
+
+def eval_split_classifier_task(args_tuple):
+    """Per-(split, classifier) eval task.
+
+    One task = 1 classifier × (baseline + all aug configs) for one split.
+    Returns one row dict {split, classifier, baseline, <sname>: bacc, ...}.
+
+    Ideal parallel unit: 10 splits × 6 classifiers = 60 tasks over 28 workers.
+    Fast classifiers (KNN, LR, RF, XGBoost) finish quickly → freeing workers
+    for slow TabPFN/MLP. TabPFN loads once per worker lifetime (ProcessPool
+    reuses workers) so subsequent fits are fast.
+    """
+    import sys, os, time, json
+    sys.path.insert(0, "/home/work/JooKyung/TabEBM/src")
+    sys.path.insert(0, "/home/work/JooKyung/TabEBM/experiments")
+
+    import numpy as np
+    from pathlib import Path
+    from sklearn.ensemble import RandomForestClassifier
+    from sklearn.linear_model import LogisticRegression
+    from sklearn.metrics import balanced_accuracy_score
+    from sklearn.neighbors import KNeighborsClassifier
+    from sklearn.neural_network import MLPClassifier
+    import xgboost as xgb
+    from tabpfn import TabPFNClassifier
+
+    (split_i, clf_name, seed_i,
+     X_tr, y_tr, X_val, y_val, X_te, y_te,
+     aug_settings, samples_dir_str, classes,
+     n_syn_total, n_syn_per_class, gpu) = args_tuple
+
+    samples_dir = Path(samples_dir_str)
+
+    def build(name, seed):
+        if name == 'knn':
+            return KNeighborsClassifier(n_jobs=-1)
+        if name == 'lr':
+            return LogisticRegression(max_iter=1000, n_jobs=-1, random_state=seed)
+        if name == 'rf':
+            return RandomForestClassifier(n_jobs=-1, random_state=seed)
+        if name == 'xgboost':
+            return xgb.XGBClassifier(
+                n_jobs=-1, eval_metric='logloss', use_label_encoder=False,
+                random_state=seed, early_stopping_rounds=10,
+            )
+        if name == 'mlp':
+            return MLPClassifier(max_iter=500, random_state=seed)
+        if name == 'tabpfn':
+            return TabPFNClassifier(
+                n_estimators=1, device=f'cuda:{gpu}', random_state=seed,
+                ignore_pretraining_limits=True,
+            )
+        raise ValueError(f'unknown classifier: {name}')
+
+    def fit_and_score(X_fit, y_fit):
+        clf = build(clf_name, seed_i)
+        # option B — xgboost uses external val for early stopping
+        if clf_name == 'xgboost':
+            clf.fit(X_fit, y_fit, eval_set=[(X_val, y_val)], verbose=False)
+        else:
+            clf.fit(X_fit, y_fit)
+        return float(balanced_accuracy_score(y_te, clf.predict(X_te)) * 100)
+
+    t0 = time.time()
+    row = {
+        'n_syn_total': int(n_syn_total),
+        'n_syn_per_class': int(n_syn_per_class),
+        'split': int(split_i),
+        'classifier': clf_name,
+        'baseline': fit_and_score(X_tr, y_tr),
+    }
+
+    for sname in aug_settings:
+        smp_parts = []
+        smp_labels = []
+        for c in classes:
+            p = samples_dir / f'split_{split_i}' / sname / f'c{c}.npy'
+            arr = np.load(p)[:n_syn_per_class]
+            smp_parts.append(arr)
+            smp_labels.append(np.full(len(arr), c))
+        X_aug = np.vstack([X_tr] + smp_parts)
+        y_aug = np.concatenate([y_tr] + smp_labels)
+        row[sname] = fit_and_score(X_aug, y_aug)
+
+    row['_dt'] = round(time.time() - t0, 2)
+    row['_pid'] = os.getpid()
+    row['_gpu'] = int(gpu)
+    return row
